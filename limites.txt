@@ -1,11 +1,11 @@
 2.1 Couplage et contrôle des responsabilités
-— Quelles fonctions du serveur manipulent à la fois l’état métier, les sockets réseau et le journal ? Pouvez-vous identifier un exemple de fonction violant le principe de séparation des responsabilités ?
+— Quelles fonctions du serveur manipulent à la fois l’état métier,les sockets réseau et le journal ? Pouvez-vous identifier un exemple de fonction violant le principe de séparation des responsabilités ?
 
-Les fonctions qui gèrent les commandes utilisateur comme /msg font tout en même temps : logique métier, envoi réseau et logs. C’est typiquement une mauvaise séparation des rôles.
+La fonction envoyer_message(self, pseudo, texte) gère l'état métier (conditions sur etat_serveur), le socket réseau (écritures wfile.write) et le journal (appel à log()).
 
-— Si vous supprimez IRCHandler et branchez un autre protocole (HTTP, WebSocket…), combien de fonctions métier devrez-vous réécrire ?
+— Si vous supprimez IRCHandler et branchez un autre protocole (HTTP, WebSocket…), combien de fonctions métier devrez vous réécrire ?
 
-Beaucoup trop. La logique métier est trop liée au protocole actuel, donc il faudrait presque tout refaire.
+Il faudrait réécrire toutes les fonctions dans IRCHandler car elles sont fortement liées à `self`. Cela implique la réécriture de 7 fonctions.
 
 — Le protocole est-il une interface explicite du système ou seulement un comportement émergent ? Autrement dit : peut-on découpler les « effets » des commandes de leur format textuel ?
 
