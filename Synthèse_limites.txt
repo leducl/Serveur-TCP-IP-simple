@@ -1,0 +1,69 @@
+Synthèse technique – Réflexion sur les limites du serveur IRC TCP/IP
+1. Points forts du serveur actuel
+Le serveur IRC développé dans le cadre de ce TP présente plusieurs qualités notables :
+
+Simplicité de conception : L’architecture repose sur une unique classe de gestion IRCHandler, ce qui rend le code accessible et compréhensible rapidement. Les commandes sont textuelles et intuitives (/nick, /join, /msg), facilitant l’expérimentation et l’usage en ligne de commande.
+
+Réactivité et traitement parallèle : L’utilisation de ThreadingTCPServer permet de traiter les connexions clients en parallèle, assurant une certaine fluidité de service même en cas de connexions multiples.
+
+Persistance minimale de l’état : Le serveur sauvegarde l’état des canaux dans un fichier JSON, ce qui permet de restaurer une partie de l’environnement entre deux exécutions.
+
+Journalisation intégrée : Le système de log permet un suivi des actions utilisateur, ainsi qu’un archivage simple des événements du serveur.
+
+2. Limites identifiées
+2.1 Couplage fort entre les couches
+La logique métier, la gestion des sockets et la journalisation sont étroitement couplées dans la même classe. Par exemple, les méthodes envoyer_message ou rejoindre_canal manipulent à la fois l’état du serveur, le flux réseau (wfile) et les journaux. Ce couplage empêche une réutilisation ou un test indépendant de la logique métier.
+
+De plus, toute modification du protocole ou remplacement du mode de communication (ex. passage de TCP à WebSocket ou HTTP) impliquerait une réécriture complète des fonctions métier, car celles-ci sont directement liées au format textuel des commandes.
+
+2.2 Protocole implicite et non formalisé
+Le protocole en place est défini par convention (ex: /msg, /join), mais ne repose sur aucune grammaire normalisée. Il est donc difficilement extensible, non versionné et peu interopérable. Il est par ailleurs délicat pour un client automatique de distinguer les types de messages (utilisateur, système, erreur), car tous sont transmis sous forme de texte brut sans métadonnées.
+
+L’ajout d’une nouvelle commande nécessite une modification du code serveur, contrairement à une API REST bien conçue où chaque ressource dispose d’une interface explicite et découplée.
+
+2.3 Testabilité limitée
+La forte dépendance aux sockets empêche l’écriture de tests unitaires sans simulation complexe. L’état global etat_serveur est partagé entre tous les threads, ce qui rend le comportement difficilement prévisible en cas de test multi-clients.
+
+Plusieurs comportements sont implicites et non testés, comme la disparition silencieuse d’un canal vide, la déconnexion d’un utilisateur inactif, ou encore la gestion d’un client malveillant envoyant des commandes dans un ordre incorrect.
+
+2.4 Problèmes de scalabilité et de tolérance aux pannes
+Le serveur repose sur un état en mémoire protégé par un verrou unique (threading.Lock), ce qui limite fortement la scalabilité horizontale. Il est actuellement impossible de faire fonctionner plusieurs instances du serveur en parallèle sans conflits.
+
+En cas de montée en charge (par exemple 1 000 clients actifs), le traitement concurrentiel par thread atteint ses limites : consommation mémoire, collisions sur l’état global, contention sur le verrou.
+
+De plus, aucune tolérance aux pannes n’est prévue. La perte d’une socket client, l’impossibilité d’écrire dans le fichier de journal, ou un état corrompu ne déclenchent aucune alerte spécifique, et peuvent mener à un comportement incohérent du serveur.
+
+3. Perspectives de refactorisation vers une architecture moderne
+Afin de faire évoluer ce serveur vers une architecture web ou orientée micro-services, plusieurs chantiers techniques sont à envisager :
+
+3.1 Séparation des responsabilités
+Il conviendrait de découpler la logique métier de la gestion réseau, en isolant les traitements dans des modules indépendants pouvant être appelés par une interface HTTP, WebSocket, ou tout autre protocole.
+
+3.2 Formalisation du protocole
+Un passage à un format d’échange structuré comme JSON permettrait de clarifier les interactions, de faciliter la documentation et d’améliorer l’interopérabilité avec d’autres clients (applications web, scripts, bots).
+
+Un système d’API REST ou d’événements via WebSocket serait bien plus adapté à une utilisation moderne.
+
+3.3 Remplacement de la persistance locale
+Le fichier JSON utilisé pour stocker l’état du serveur devrait être remplacé par une base de données (relationnelle ou NoSQL) ou une file de messages, assurant une meilleure fiabilité, une réplication possible et une gestion concurrente plus robuste.
+
+3.4 Architecture distribuée
+Une architecture à base de micro-services permettrait de répartir les responsabilités sur différents services spécialisés (gestion des utilisateurs, des canaux, des messages, etc.), chacun exposant une interface REST et communicant éventuellement via un bus de messages (RabbitMQ, Kafka).
+
+Une telle architecture permettrait également de déployer les composants dans des conteneurs (Docker) et d’assurer leur orchestration avec un outil tel que Kubernetes.
+
+3.5 Déploiement et supervision
+Pour rendre le système devops-compatible, il faudrait ajouter :
+
+des tests automatisés,
+
+des logs structurés (ex: format JSON pour parsing),
+
+un monitoring via Prometheus ou Grafana,
+
+une configuration externalisée (via fichiers .env ou variables d’environnement).
+
+Conclusion
+Le serveur IRC proposé dans ce TP est un bon socle pédagogique pour comprendre les interactions réseau en TCP/IP et les bases d’un système multi-client. Cependant, son architecture monolithique, son couplage fort et sa gestion d’état non distribuée en limitent fortement l’évolutivité.
+
+Une refonte progressive, basée sur la séparation des couches, la formalisation des interfaces et la mise en place d’une architecture orientée services, permettrait de transformer cette base en un système robuste, scalable et maintenable.
