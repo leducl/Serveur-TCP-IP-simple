@@ -1,0 +1,30 @@
+2.1 Analyse du code
+Répondez aux questions suivantes sans modifier encore le code :
+
+1) Qui traite les commandes ?
+— Quelle fonction interprète /msg, /join, etc. ?
+C'est le serveur qui traite les commandes avec la fonction handle.
+
+— Qui accède à la mémoire partagée etat_serveur ?
+C'est le serveur qui accède a cette mémoire partagée, elle est gérer via la fonction charger_etat().
+
+2) Où sont stockées les infos ?
+— Où est enregistré le canal courant d’un utilisateur ?
+Dans le dictionnaire etat_serveur["utilisateurs"].
+Chaque pseudo est une clé, et la valeur est un dictionnaire qui contient "canal".
+
+— Où sont les flux de sortie (wfile) associés à chaque client ?
+Toujours dans etat_serveur["utilisateurs"].
+Chaque utilisateur a un champ "wfile" qui contient l'objet wfile permettant d’écrire vers ce client.
+
+3) Qui peut planter ?
+— Que se passe-t-il si un client quitte sans envoyer /quit ?
+Le readline() retournera une chaîne vide (if not ligne: break) => la boucle se termine.
+
+— Qu’arrive-t-il si un write() échoue ? Est-ce détecté ?
+Tous les write() sont dans des blocs try/except: continue.
+Donc si ça échoue (socket fermée, erreur réseau...), l'exception est attrapée mais ignorée (on continue sans rien faire).
+
+— Est-ce qu’un canal vide est supprimé ?
+On ne teste jamais si la liste est vide pour supprimer le canal de etat_serveur["canaux"].
+Donc les canaux vides restent présents
