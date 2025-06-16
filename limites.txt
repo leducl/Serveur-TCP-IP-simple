@@ -1,0 +1,88 @@
+2.1 Couplage et contrôle des responsabilités
+— Quelles fonctions du serveur manipulent à la fois l’état métier, les sockets réseau et le journal ? Pouvez-vous identifier un exemple de fonction violant le principe de séparation des responsabilités ?
+
+Les fonctions qui gèrent les commandes utilisateur comme /msg font tout en même temps : logique métier, envoi réseau et logs. C’est typiquement une mauvaise séparation des rôles.
+
+— Si vous supprimez IRCHandler et branchez un autre protocole (HTTP, WebSocket…), combien de fonctions métier devrez-vous réécrire ?
+
+Beaucoup trop. La logique métier est trop liée au protocole actuel, donc il faudrait presque tout refaire.
+
+— Le protocole est-il une interface explicite du système ou seulement un comportement émergent ? Autrement dit : peut-on découpler les « effets » des commandes de leur format textuel ?
+
+C’est plutôt un comportement émergent. Les effets ne sont pas séparés du texte, donc difficilement réutilisables.
+
+— Quelles sont les opérations atomiques ? Peut-on garantir la cohérence du système si une commande échoue à mi-chemin ?
+
+Il n’y a pas d’opérations vraiment atomiques. Une commande peut réussir à moitié, et ça peut casser la cohérence (ex : message reçu par certains, pas par d’autres).
+
+2.2 Protocole et interopérabilité
+— Quels types d’erreurs le protocole peut-il exprimer ? Différencie-t-on une erreur de syntaxe, une interdiction d’accès, un état illégal, une erreur serveur ?
+
+Non, tout est renvoyé de la même manière. On ne sait pas si c’est une faute de syntaxe ou un bug serveur.
+
+— Pouvez-vous formaliser le protocole actuel (syntaxe, contraintes) sous forme de grammaire normalisée ?
+
+Pas vraiment. C’est trop souple, il n’y a pas de structure claire ni de validation stricte.
+
+— Comment un client non humain saurait-il qu’une ligne reçue est un message utilisateur, une info système, une alerte ?
+
+Il ne pourrait pas. Tout est du texte brut, sans distinction claire.
+
+— Ce protocole peut-il être versionné ? Peut-on prévoir une rétrocompatibilité ? Quel est le coût d’ajout d’une commande comparé à une API REST ?
+
+C’est compliqué à versionner. Ajouter une commande coûte cher : pas de standard, peu de tests. Une API REST est bien plus propre pour ça.
+
+2.3 Testabilité et fiabilité
+— Quels tests unitaires sont aujourd’hui impossibles à écrire sans simuler une socket TCP ? Pourquoi ? Que faudrait-il isoler ?
+
+Les fonctions qui dépendent des fichiers de socket (wfile, rfile). Il faudrait séparer la logique métier du réseau.
+
+— Quels comportements sont aujourd’hui implicites et non testés ?
+
+Par exemple, quand un canal vide disparaît, ou quand un client est déconnecté sans que personne ne le sache. Ce n’est ni contrôlé, ni testé.
+
+— Peut-on simuler un client malveillant qui envoie /msg sans /join ? Comment le serveur réagit-il ? Peut-il être amené à un état invalide ?
+
+Oui. Le serveur ne réagit pas toujours correctement et peut se retrouver dans un état incohérent.
+
+— Le système actuel tolère-t-il les pannes partielles ?
+
+Pas vraiment. Si une socket casse ou si on ne peut pas écrire dans le journal, ça peut planter ou perdre des infos.
+
+2.3.1 Scalabilité et distribution
+— L’état du serveur est-il réplicable ? Peut-on faire tourner deux instances concurrentes sans conflit ? Pourquoi pas ?
+
+Non, tout est stocké en mémoire locale. Deux serveurs auraient des états différents, sans synchronisation.
+
+— Quelles ressources sont globales et quelles données pourraient être distribuées ?
+
+Les utilisateurs et les canaux sont globaux. Par contre, les messages par canal pourraient être répartis.
+
+— Que faudrait-il pour brancher un système de persistance robuste (base de données ou message queue) à la place du JSON et du wfile ?
+
+Il faudrait découpler la logique métier, ajouter une vraie couche de persistance et utiliser des interfaces propres.
+
+— Le système actuel est-il capable de gérer des charges réseau variables ? Que se passe-t-il si 1 000 clients envoient 10 messages chacun en même temps ?
+
+Non, il va saturer. Tout est synchrone, il n’y a pas de gestion de charge ni de file d’attente.
+
+— Quelle architecture serait capable d’absorber cette charge avec fiabilité ?
+
+Un système distribué, avec micro-services, un broker de messages (comme RabbitMQ) et un cluster géré par Kubernetes ou autre.
+
+2.3.2 Évolutivité du code et découpage en services
+— Quelles commandes actuelles pourraient être déléguées à un service distinct (externe) ? Pourquoi ?
+
+Les commandes comme /msg, /join, /list pourraient être déléguées car elles ne dépendent pas du protocole lui-même.
+
+— Peut-on identifier une ou plusieurs interfaces métier dans ce système ? Que faudrait-il pour que le serveur devienne une simple “coquille réseau” ?
+
+Oui, en extrayant la logique métier dans des fonctions ou modules clairs. Le serveur ne ferait alors que transmettre les requêtes.
+
+— Que manque-t-il à ce projet pour le rendre devops-compatible ?
+
+Il manque des tests, des logs lisibles par machine, du monitoring, une API REST, une config externe, et une conteneurisation.
+
+— À quelles conditions ce serveur peut-il devenir une base pour une architecture micro-services ?
+
+Il faut isoler les composants, utiliser des canaux de communication clairs, persister les données, et ajouter de l’observabilité (logs, stats…).
